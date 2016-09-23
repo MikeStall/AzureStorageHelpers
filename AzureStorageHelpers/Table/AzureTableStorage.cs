@@ -25,7 +25,7 @@ namespace AzureStorageHelpers
         }
 
         // All must have the same partition key 
-        public async Task WriteBatchAsync(T[] entities)
+        public async Task WriteBatchAsync(T[] entities, TableInsertMode mode = TableInsertMode.Insert)
         {
             if (entities.Length == 0)
             {
@@ -42,7 +42,24 @@ namespace AzureStorageHelpers
                 {
                     throw new InvalidOperationException("All entities in a batch must have same partition key");
                 }
-                batchOperation.Insert(entity);
+
+                ValidateRowKey(entity.RowKey);
+
+                switch (mode)
+                {
+                    case TableInsertMode.Insert:
+                        batchOperation.Insert(entity);
+                        break;
+                    case TableInsertMode.InsertOrMerge:
+                        batchOperation.InsertOrMerge(entity);
+                        break;
+                    case TableInsertMode.InsertOrReplace:
+                        batchOperation.InsertOrReplace(entity);
+                        break;
+                    default:
+                        throw new InvalidOperationException("Unsupported insert mode: " + mode.ToString());
+                }
+
                 if (batchOperation.Count == BatchSize)
                 {
                     // Flush
@@ -57,13 +74,30 @@ namespace AzureStorageHelpers
             }
         }
 
-        public async Task WriteOneAsync(T entity)
+        public async Task WriteOneAsync(T entity, TableInsertMode mode = TableInsertMode.Insert)
         {
             // Create the TableOperation that inserts the customer entity.
-            TableOperation insertOperation = TableOperation.InsertOrReplace(entity);
+            TableOperation op;
+            
+            switch(mode)
+            {
+                case TableInsertMode.Insert: 
+                    op = TableOperation.InsertOrReplace(entity);
+                    break;
+                case TableInsertMode.InsertOrMerge:
+                    op = TableOperation.InsertOrMerge(entity);
+                    break;
+
+                case TableInsertMode.InsertOrReplace:
+                    op = TableOperation.InsertOrReplace(entity);
+                    break;
+
+                default:
+                    throw new InvalidOperationException("Unsupported insert mode: " + mode.ToString());
+            }            
 
             // Execute the insert operation.
-            await _table.ExecuteAsync(insertOperation);
+            await _table.ExecuteAsync(op);
         }
 
         public async Task WriteOneMergeAsync(T entity)
@@ -81,7 +115,7 @@ namespace AzureStorageHelpers
 
             // Execute the retrieve operation.
             TableResult retrievedResult = await _table.ExecuteAsync(retrieveOperation);
-                        
+
             if (retrievedResult.Result != null)
             {
                 T entity = (T)retrievedResult.Result;
@@ -114,7 +148,7 @@ namespace AzureStorageHelpers
             if (partitionKey == null)
             {
                 // Get all rows
-                return FetchAllEntities();               
+                return FetchAllEntities();
             }
             else
             {
@@ -156,6 +190,42 @@ namespace AzureStorageHelpers
                     return;
                 }
             }
+        }
+
+        // Very useful for tracking down errors in a batch. 
+        public static void ValidateRowKey(string rowKey)
+        {
+            bool isValid = IsValidateRowKey(rowKey);
+            if (!isValid)
+            {
+                throw new InvalidOperationException("Row key '" + rowKey + "' has invalid chars.");
+            }
+        }
+
+        // https://blogs.msdn.microsoft.com/jmstall/2014/06/12/azure-storage-naming-rules/
+        private static bool IsValidateRowKey(string rowKey)
+        {
+            if (string.IsNullOrWhiteSpace(rowKey))
+            {
+                return false;
+            }
+            foreach (var ch in rowKey)
+            {
+                var c = (short)ch;
+                if (c < 0x1f)
+                {
+                    return false;
+                }
+                else if (c >= 0x7f && c <= 0x9f)
+                {
+                    return false;
+                }
+                else if (ch == '/' || ch == '\\' || ch == '#' || ch == '?')
+                {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }

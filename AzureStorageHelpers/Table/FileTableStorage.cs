@@ -24,7 +24,8 @@ namespace AzureStorageHelpers
         // Not bullet proof (doesn't work cross-process); but good enough for local testing. 
         object _lock = new object();
 
-        public async Task WriteBatchAsync(T[] entities)
+        // $$$ - Respect insert mode
+        public async Task WriteBatchAsync(T[] entities, TableInsertMode mode)
         {
             lock (_lock)
             {
@@ -35,7 +36,7 @@ namespace AzureStorageHelpers
             }
         }
 
-        public async Task WriteOneAsync(T entity)
+        public async Task WriteOneAsync(T entity, TableInsertMode mode )
         {
             lock (_lock)
             {
