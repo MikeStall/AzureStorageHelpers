@@ -1,6 +1,7 @@
 ﻿using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -123,30 +124,43 @@ namespace AzureStorageHelpers
 
         public async Task<T[]> LookupAsync(string partitionKey, string rowKeyStart = null, string rowKeyEnd = null)
         {
-            string path = Path.Combine(_root, partitionKey);
-            Directory.CreateDirectory(path);
+            string[] paths;
+            if (partitionKey == null)
+            {
+                // Return all
+                paths = Directory.EnumerateDirectories(_root).ToArray();
+            }
+            else
+            {
+                string path = Path.Combine(_root, partitionKey);
+                Directory.CreateDirectory(path);
+                paths = new string[] { path };
+            }
 
             List<T> l = new List<T>();
-            foreach (var file in Directory.EnumerateFiles(path))
+            foreach (var path in paths)
             {
-                string rowKey = Path.GetFileNameWithoutExtension(file);
-
-                if (rowKeyStart != null)
+                foreach (var file in Directory.EnumerateFiles(path))
                 {
-                    if (string.Compare(rowKey, rowKeyStart) < 0)
-                    {
-                        continue;
-                    }
-                }
-                if (rowKeyEnd != null)
-                {
-                    if (string.Compare(rowKey, rowKeyEnd) > 0)
-                    {
-                        continue;
-                    }
-                }
+                    string rowKey = Path.GetFileNameWithoutExtension(file);
 
-                l.Add(ReadEntity(file));
+                    if (rowKeyStart != null)
+                    {
+                        if (string.Compare(rowKey, rowKeyStart) < 0)
+                        {
+                            continue;
+                        }
+                    }
+                    if (rowKeyEnd != null)
+                    {
+                        if (string.Compare(rowKey, rowKeyEnd) > 0)
+                        {
+                            continue;
+                        }
+                    }
+
+                    l.Add(ReadEntity(file));
+                }
             }
             return l.ToArray();
         }    

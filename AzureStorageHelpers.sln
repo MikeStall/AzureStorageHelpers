@@ -5,6 +5,8 @@ VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AzureStorageHelpers", "AzureStorageHelpers\AzureStorageHelpers.csproj", "{3A154B5B-3BC2-4890-B8F5-90C95F84787D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AzureStorageHelpers.Tests", "AzureStorageHelpers.Tests\AzureStorageHelpers.Tests.csproj", "{7022436F-7211-4F76-9FA0-92A55311DD95}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{3A154B5B-3BC2-4890-B8F5-90C95F84787D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3A154B5B-3BC2-4890-B8F5-90C95F84787D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3A154B5B-3BC2-4890-B8F5-90C95F84787D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7022436F-7211-4F76-9FA0-92A55311DD95}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7022436F-7211-4F76-9FA0-92A55311DD95}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7022436F-7211-4F76-9FA0-92A55311DD95}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7022436F-7211-4F76-9FA0-92A55311DD95}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
