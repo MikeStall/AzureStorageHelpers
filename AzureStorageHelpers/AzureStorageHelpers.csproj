@@ -69,6 +69,7 @@
     <Compile Include="Blob\AzureBlobStorage.cs" />
     <Compile Include="Queue\AzureQueue.cs" />
     <Compile Include="Queue\FileQueue.cs" />
+    <Compile Include="Segment.cs" />
     <Compile Include="Table\AzureTableStorage.cs" />
     <Compile Include="Blob\FileBlobStorage.cs" />
     <Compile Include="Table\FileTableStorage.cs" />
@@ -78,6 +79,7 @@
     <Compile Include="IStorageAccount.cs" />
     <Compile Include="Table\ITableLookupStorage.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Table\TableUtility.cs" />
     <Compile Include="UserException.cs" />
   </ItemGroup>
   <ItemGroup>

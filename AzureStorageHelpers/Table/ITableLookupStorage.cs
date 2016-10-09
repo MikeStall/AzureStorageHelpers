@@ -1,4 +1,5 @@
 ﻿using Microsoft.WindowsAzure.Storage.Table;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace AzureStorageHelpers
@@ -16,7 +17,7 @@ namespace AzureStorageHelpers
         // Find all rows in this partition.
         // If PartitionKey = null, find all entities. 
         // Inclusive
-        Task<T[]> LookupAsync(string partitionKey, string rowKeyStart = null, string rowKeyEnd = null);
+        Task<Segment<T>> LookupAsync(string partitionKey, string rowKeyStart, string rowKeyEnd, string continuationToken);
     }
 
     // Includes mutable operations. 
@@ -48,6 +49,36 @@ namespace AzureStorageHelpers
 
     public static class ITableLookupStorageExtensions
     {
+        public static async Task<T[]> LookupAsync<T>(this ITableLookupStorage<T> table,
+            string partitionKey, string rowKeyStart = null, string rowKeyEnd = null) where T : TableEntity
+        {
+            List<T> list = null;
+            string continuationToken = null;
+
+            while (true)
+            {
+                var segment = await table.LookupAsync(partitionKey, rowKeyStart, rowKeyEnd, continuationToken);
+                if (list == null)
+                {
+                    if (segment.ContinuationToken == null)
+                    {
+                        return segment.Results; // optimization, skip allocating the list 
+                    }
+                    list = new List<T>();
+                }
+                if (segment.Results != null)
+                {
+                    list.AddRange(segment.Results);
+                }
+                continuationToken = segment.ContinuationToken;
+                if (continuationToken == null)
+                {
+                    // Done
+                    return list.ToArray();
+                }
+            }
+        }
+
         // Given a rowkey prefix, generate the next prefix. This can be used to find all row keys with a given prefix. 
         internal static string NextRowKey(string rowKeyStart)
         {

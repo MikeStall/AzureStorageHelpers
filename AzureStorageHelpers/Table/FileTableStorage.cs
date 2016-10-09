@@ -122,7 +122,11 @@ namespace AzureStorageHelpers
             return obj;
         }
 
-        public async Task<T[]> LookupAsync(string partitionKey, string rowKeyStart = null, string rowKeyEnd = null)
+        public async Task<Segment<T>> LookupAsync(
+            string partitionKey, 
+            string rowKeyStart, 
+            string rowKeyEnd,
+            string continuationToken)
         {
             string[] paths;
             if (partitionKey == null)
@@ -162,7 +166,24 @@ namespace AzureStorageHelpers
                     l.Add(ReadEntity(file));
                 }
             }
-            return l.ToArray();
+
+            // Excercise continuation tokens.  
+            if (continuationToken == null)
+            {
+                if (l.Count == 0)
+                {
+                    return new Segment<T>(new T[0], null);
+                }
+                return new Segment<T>(new T[1] { l[0] }, "x");
+            }
+            else if (continuationToken == "x")
+            {
+                return new Segment<T>(l.Skip(1).ToArray());
+            }
+            else
+            {
+                throw new InvalidOperationException("illegal continuation token");
+            }
         }    
     }
 }

@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.WindowsAzure.Storage.Table;
 using System.Threading.Tasks;
 using System.IO;
+using System.Collections.Generic;
 
 namespace AzureStorageHelpers.Tests
 {
@@ -16,6 +17,53 @@ namespace AzureStorageHelpers.Tests
         }
 
         [TestMethod]
+        public async Task ContinuationTokens()
+        {
+            var storage = GetStorage();
+
+            var table = storage.NewTable<MyEntity>("table2");
+
+            // Must write 1000+ entries to force a continuation token 
+            int basex = 3000;
+            List<MyEntity> list = new List<MyEntity>();
+            for (int i = 0; i < 1500; i++)
+            {
+                list.Add(new MyEntity { 
+                    PartitionKey = "1", 
+                    RowKey = i.ToString("d10"), 
+                    Value = i + basex });
+            }
+            await table.WriteBatchAsync(list.ToArray(), TableInsertMode.InsertOrReplace);
+
+            // Continuation tokens.
+            // Only way to force a continuation token is to have 1000+ items. 
+
+            var segment = await table.LookupAsync(null, null, null, null);
+            Assert.AreEqual(basex, segment.Results[0].Value);
+
+            for (int i = 0; i < segment.Results.Length; i++)
+            {
+                Assert.AreEqual(list[i], segment.Results[i]);
+            }
+
+
+            var cont1 = segment.ContinuationToken;
+
+            var segment1 = await table.LookupAsync(null, null, null, cont1);
+            var segment2 = await table.LookupAsync(null, null, null, cont1);
+
+            Assert.AreEqual(segment1.ContinuationToken, segment2.ContinuationToken);
+            Assert.AreEqual(segment1.Results.Length, segment2.Results.Length);
+            for (int i = 0; i < segment1.Results.Length; i++)
+            {
+                Assert.AreEqual(segment1.Results[i], segment2.Results[i]);
+            }
+
+            Assert.AreEqual(segment.Results.Length + basex, segment1.Results[0].Value);
+        }
+
+
+        [TestMethod]
         public async Task TestMethod1()
         {
             var storage = GetStorage();
@@ -26,7 +74,7 @@ namespace AzureStorageHelpers.Tests
             await table.WriteOneAsync(new MyEntity { PartitionKey = "1", RowKey = "A2", Value = 20 });
             await table.WriteOneAsync(new MyEntity { PartitionKey = "1", RowKey = "B2", Value = 30 });
             await table.WriteOneAsync(new MyEntity { PartitionKey = "2", RowKey = "B1", Value = 40 });
-            
+
             var e2 = await table.LookupOneAsync("1", "A2");
             Assert.AreEqual(20, e2.Value);
 
@@ -40,7 +88,7 @@ namespace AzureStorageHelpers.Tests
 
             AssertRows(
                 await table.LookupAsync("1", "A2", "C"), // Range
-                20,30);
+                20, 30);
 
             AssertRows(
               await table.LookupAsync("1", "A2", "B2"), // Range, inclusive end
@@ -56,8 +104,7 @@ namespace AzureStorageHelpers.Tests
 
             AssertRows(
                 await table.LookupAsync("3"));
-
-
+                    
             // Delete 
             AssertRows(
                 await table.LookupAsync(null), // Entire table
@@ -85,5 +132,21 @@ namespace AzureStorageHelpers.Tests
     public class MyEntity : TableEntity
     {
         public int Value { get; set; }
+
+        public override bool Equals(object obj)
+        {
+            var other = obj as MyEntity;
+            if (other == null)
+            {
+                return false;
+            }
+            return (this.PartitionKey == other.PartitionKey) &&
+                (this.RowKey == other.RowKey) &&
+                (this.Value == other.Value);
+        }
+        public override int GetHashCode()
+        {
+            return this.Value;
+        } 
     }
 }

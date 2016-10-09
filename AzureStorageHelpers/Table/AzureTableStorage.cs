@@ -1,8 +1,6 @@
 ﻿using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace AzureStorageHelpers
@@ -127,28 +125,16 @@ namespace AzureStorageHelpers
         }
 
         // http://stackoverflow.com/questions/18376087/copy-all-rows-to-another-table-in-azure-table-storage
-        private T[] FetchAllEntities()
+        public async Task<Segment<T>> LookupAsync(
+            string partitionKey, 
+            string rowKeyStart, 
+            string rowKeyEnd,
+            string continuationToken)
         {
-            List<T> allEntities = new List<T>();
-            TableContinuationToken tableContinuationToken = null;
-
-            TableQuery<T> query = new TableQuery<T>();
-            do
-            {
-                var queryResponse = _table.ExecuteQuerySegmented<T>(query, tableContinuationToken, null, null);
-                tableContinuationToken = queryResponse.ContinuationToken;
-                allEntities.AddRange(queryResponse.Results);
-            }
-            while (tableContinuationToken != null);
-            return allEntities.ToArray();
-        }
-
-        public async Task<T[]> LookupAsync(string partitionKey, string rowKeyStart = null, string rowKeyEnd = null)
-        {
+            TableQuery<T> query;
             if (partitionKey == null)
             {
-                // Get all rows
-                return FetchAllEntities();
+                query = new TableQuery<T>();
             }
             else
             {
@@ -165,14 +151,15 @@ namespace AzureStorageHelpers
                         TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.LessThanOrEqual, rowKeyEnd));
                 }
 
-                TableQuery<T> query = new TableQuery<T>().Where(filter);
-
-                var rows = _table.ExecuteQuery(query); // This will return all rows (well over 1000)
-
-                var array = rows.ToArray();
-                return array;
+                query = new TableQuery<T>().Where(filter);
             }
+
+            TableContinuationToken realToken = TableUtility.DeserializeToken(continuationToken);
+            var segment = await _table.ExecuteQuerySegmentedAsync(query, realToken);
+
+            return new Segment<T>(segment.Results.ToArray(), TableUtility.SerializeToken(segment.ContinuationToken));
         }
+     
 
 
         public async Task DeleteOneAsync(T entity)
