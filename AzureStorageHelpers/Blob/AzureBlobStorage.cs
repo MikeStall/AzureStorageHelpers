@@ -179,12 +179,15 @@ namespace AzureStorageHelpers
 
         public async Task DeleteAsync(string path)
         {
-            // Backup somewhere safe just so we can restore if there's an accident. 
+            // Backup somewhere safe just so we can restore if there's an accident.             
             {
                 string savePath = "save/" + path;
                 string value = await this.ReadAsync(path);
-                var saveBlob = _container.GetBlockBlobReference(path);
-                await saveBlob.UploadTextAsync(value);
+                if (value != null)
+                {
+                    var saveBlob = _container.GetBlockBlobReference(path);
+                    await saveBlob.UploadTextAsync(value);
+                }
             }
             
             var blob = _container.GetBlobReferenceFromServer(path);
