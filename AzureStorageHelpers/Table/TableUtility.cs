@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
@@ -21,36 +22,76 @@ namespace AzureStorageHelpers
                 return null;
             }
 
-            using (var writer = new StringWriter(CultureInfo.InvariantCulture))
+            // Much more compact than XML serialization. 
+            // XML serializing can be 300 bytes; then Base64 encoding can expand another 25%. 
+            // Direct up serialization here can be 40bytes. 
+            string s = string.Format("t,{0},{1},{2},{3},x",
+                token.NextPartitionKey,
+                token.NextRowKey,
+                token.NextTableName,
+                token.TargetLocation.HasValue ? (
+                (token.TargetLocation.Value == StorageLocation.Primary) ? "P" : token.TargetLocation.Value.ToString()) :
+                "");
+            return s;        
+        }
+
+        private static string Norm(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s))
             {
-                using (var xmlWriter = XmlWriter.Create(writer))
-                {
-                    token.WriteXml(xmlWriter);
-                }
-                string serialized = writer.ToString();
-                var val = EncodeBase64(serialized);
-                return val;
+                return null;
             }
+            return s;
         }
 
         public static TableContinuationToken DeserializeToken(string token)
         {
-            if (!string.IsNullOrWhiteSpace(token))
+            if (string.IsNullOrWhiteSpace(token))
             {
-                var raw = DecodeBase64(token);
-                TableContinuationToken contToken = null;
-
-                using (var stringReader = new StringReader(raw))
+                return null;
+            }
+            try
+            {
+                var parts = token.Split(',');
+                if (parts.Length != 6)
                 {
-                    contToken = new TableContinuationToken();
-                    using (var xmlReader = XmlReader.Create(stringReader))
+                    throw new InvalidOperationException(); 
+                }
+                var header = parts[0];
+                if (header != "t")
+                {
+                    throw new InvalidOperationException();
+                }
+                var footer = parts[5];
+                if (footer != "x")
+                {
+                    throw new InvalidOperationException();
+                }
+
+                TableContinuationToken t = new TableContinuationToken();
+                t.NextPartitionKey = Norm(parts[1]);
+                t.NextRowKey = Norm(parts[2]);
+                t.NextTableName = Norm(parts[3]);
+
+                var loc = Norm(parts[4]);
+                if (loc != null)
+                {
+                    if (loc == "P")
                     {
-                        contToken.ReadXml(xmlReader);
+                        t.TargetLocation = StorageLocation.Primary;
+                    }
+                    else
+                    {
+                        t.TargetLocation = (StorageLocation) Enum.Parse(typeof(StorageLocation), loc);
                     }
                 }
-                return contToken;
+
+                return t;          
             }
-            return null;
+            catch
+            {
+                throw new UserException(HttpStatusCode.BadRequest, "Continuation token is invalid");
+            }
         }
 
         public static string EncodeBase64(string str)

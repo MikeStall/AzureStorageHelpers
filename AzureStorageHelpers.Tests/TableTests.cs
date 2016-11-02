@@ -12,8 +12,8 @@ namespace AzureStorageHelpers.Tests
     {
         static IStorageAccount GetStorage()
         {
-            return new StorageAccount.FileStorageAccount(@"c:\temp\92");
-            //return new StorageAccount.AzureStorageAccount(File.ReadAllText(@"c:\temp\dummy-storage-string.txt"));
+            //return new StorageAccount.FileStorageAccount(@"c:\temp\92");
+            return new StorageAccount.AzureStorageAccount(File.ReadAllText(@"c:\temp\dummy-storage-string.txt"));
         }
 
         [TestMethod]
@@ -95,8 +95,16 @@ namespace AzureStorageHelpers.Tests
               20, 30);
 
             AssertRows(
+              await table.LookupAsync("1", "A2", "A2"), // single, inclusive end,. 
+              20);
+
+            AssertRows(
                 await table.GetRowsWithPrefixAsync("1", "A"),
                 10, 20);
+
+            AssertRows(
+                await table.GetRowsWithPrefixAsync("1", "A2"),
+                20);
 
             // Empty 
             AssertRows(
