@@ -52,5 +52,11 @@ namespace AzureStorageHelpers
         {
             throw new NotImplementedException();
         }
+
+
+        public Task<System.IO.Stream> OpenReadAsync(string path)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

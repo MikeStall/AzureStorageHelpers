@@ -2,6 +2,7 @@
 using Microsoft.WindowsAzure.Storage.Blob;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -166,15 +167,23 @@ namespace AzureStorageHelpers
         {
             var blob = _container.GetBlockBlobReference(path);
 
-            await blob.FetchAttributesAsync();
-
-            return new BlobInfo
+            try
             {
-                Name = blob.Name,
-                Size = blob.Properties.Length,
-                Timestamp = blob.Properties.LastModified.Value.DateTime,
-                Properties = blob.Metadata
-            };
+                await blob.FetchAttributesAsync();
+
+                return new BlobInfo
+                {
+                    Name = blob.Name,
+                    Size = blob.Properties.Length,
+                    Timestamp = blob.Properties.LastModified.Value.DateTime,
+                    Properties = blob.Metadata
+                };
+            }
+            catch (StorageException e)
+            {
+                // Not found. 
+                return null;
+            }
         }
 
         public async Task DeleteAsync(string path)
@@ -192,6 +201,18 @@ namespace AzureStorageHelpers
             
             var blob = _container.GetBlobReferenceFromServer(path);
             await blob.DeleteIfExistsAsync();
-        }      
+        }
+
+
+        public async Task<Stream> OpenReadAsync(string path)
+        {
+            var blob = _container.GetBlockBlobReference(path);
+            if (!blob.Exists())
+            {
+                return null;
+            }
+            Stream stream = await blob.OpenReadAsync();
+            return stream;
+        }
     }
 }

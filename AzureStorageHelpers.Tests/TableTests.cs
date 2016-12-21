@@ -62,6 +62,26 @@ namespace AzureStorageHelpers.Tests
             Assert.AreEqual(segment.Results.Length + basex, segment1.Results[0].Value);
         }
 
+        [TestMethod]
+        public async Task TestEscapes()
+        {
+            var storage = GetStorage();
+
+            var table = storage.NewTable<MyEntity>("tableEscape");
+
+            // Pick wacky characters that are illegal in file systems 
+            string pk = Guid.NewGuid().ToString();
+            string rk = "ab:*<>|";
+            await table.WriteOneAsync(new MyEntity { PartitionKey = pk, RowKey = rk, Value = 10 });
+
+            var entities = await table.LookupAsync(pk);
+
+            Assert.AreEqual(1, entities.Length);
+            Assert.AreEqual(pk, entities[0].PartitionKey);
+            Assert.AreEqual(rk, entities[0].RowKey);
+            Assert.AreEqual(10, entities[0].Value);
+        }
+
 
         [TestMethod]
         public async Task TestMethod1()

@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace AzureStorageHelpers
@@ -24,6 +25,13 @@ namespace AzureStorageHelpers
         // Null if file does not yet exist. 
         Task<string> ReadAsync(string path);
 
+        /// <summary>
+        /// Open stream for reading this blob. Useful for incremental reads. 
+        /// </summary>
+        /// <param name="path">identifier</param>
+        /// <returns>a stream. Null if blob doesn't exist.</returns>
+        Task<Stream> OpenReadAsync(string path);
+
         // List all paths with the given prefix.         
         Task<string[]> ListPathsAsync(string pathPrefix);
 
@@ -32,6 +40,7 @@ namespace AzureStorageHelpers
         Task<string[]> ListSubDirsAsync(string pathPrefix);
 
         // Get blob properties
+        // Return null if not found. 
         Task<BlobInfo> GetPropertiesAsync(string path);
 
         // Write. Throw  409  if the file already exists 

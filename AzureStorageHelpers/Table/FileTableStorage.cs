@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
+using System.Text;
+using System.Globalization;
 
 namespace AzureStorageHelpers
 {
@@ -45,10 +47,45 @@ namespace AzureStorageHelpers
             }
         }
 
+        // https://docs.microsoft.com/en-us/rest/api/storageservices/fileservices/Understanding-the-Table-Service-Data-Model?redirectedfrom=MSDN
+        // Azure table doesn't allow / \ # ? 
+        // Files don't allow    /, \, ?, :, *, <,  >, | 
+        // so # is a valid file escapacing characters 
+        static string Escape(string key)
+        {
+            StringBuilder escapedStorageKey = new StringBuilder(key.Length);
+            foreach (char c in key)
+            {
+                if (!char.IsLetterOrDigit(c))
+                {
+                    escapedStorageKey.Append(EscapeStorageCharacter(c));
+                }
+                else
+                {
+                    escapedStorageKey.Append(c);
+                }
+            }
+
+            return escapedStorageKey.ToString();
+        }
+
+        private static string EscapeStorageCharacter(char character)
+        {
+            var ordinalValue = (ushort)character;
+            if (ordinalValue < 0x100)
+            {
+                return string.Format(CultureInfo.InvariantCulture, "#{0:X2}", ordinalValue);
+            }
+            else
+            {
+                return string.Format(CultureInfo.InvariantCulture, "##{0:X4}", ordinalValue);
+            }
+        }
+
         // May throw on contention 
         private void WriteOneWorker(T entity)
         {
-            string path = Path.Combine(_root, entity.PartitionKey, entity.RowKey) + ".json";
+            string path = Path.Combine(_root, Escape(entity.PartitionKey), Escape(entity.RowKey)) + ".json";
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             File.WriteAllText(path, JsonConvert.SerializeObject(entity));
         }
@@ -84,7 +121,7 @@ namespace AzureStorageHelpers
             {
                 throw new InvalidOperationException("Delete requires an Etag. Can use '*'.");
             }
-            string path = Path.Combine(_root, entity.PartitionKey, entity.RowKey) + ".json";
+            string path = Path.Combine(_root, Escape(entity.PartitionKey), Escape(entity.RowKey)) + ".json";
 
             string currentEtag = new FileInfo(path).LastWriteTimeUtc.ToString();
             if (entity.ETag != "*" && entity.ETag != currentEtag)
@@ -105,7 +142,7 @@ namespace AzureStorageHelpers
 
         private T LookupOneWorker(string partitionKey, string rowKey)
         {
-            string path = Path.Combine(_root, partitionKey, rowKey) + ".json";
+            string path = Path.Combine(_root, Escape(partitionKey), Escape(rowKey)) + ".json";
             if (File.Exists(path))
             {
                 return ReadEntity(path);
@@ -136,7 +173,7 @@ namespace AzureStorageHelpers
             }
             else
             {
-                string path = Path.Combine(_root, partitionKey);
+                string path = Path.Combine(_root, Escape(partitionKey));
                 Directory.CreateDirectory(path);
                 paths = new string[] { path };
             }

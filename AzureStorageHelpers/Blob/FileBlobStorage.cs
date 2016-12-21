@@ -104,5 +104,12 @@ namespace AzureStorageHelpers
             Directory.CreateDirectory(Path.GetDirectoryName(x));
             File.WriteAllText(x, contents);
         }
+
+
+        public Task<Stream> OpenReadAsync(string path)
+        {
+            Stream fs = new FileStream(path, FileMode.Open, FileAccess.Read);
+            return Task.FromResult(fs);
+        }
     }
 }
