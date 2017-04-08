@@ -178,6 +178,15 @@ namespace AzureStorageHelpers
                 paths = new string[] { path };
             }
 
+            if (rowKeyStart != null)
+            {
+                rowKeyStart = Escape(rowKeyStart);
+            }
+            if (rowKeyEnd != null)
+            {
+                rowKeyEnd = Escape(rowKeyEnd);
+            }
+
             List<T> l = new List<T>();
             foreach (var path in paths)
             {

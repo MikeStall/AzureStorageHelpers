@@ -199,7 +199,7 @@ namespace AzureStorageHelpers
                 }
             }
             
-            var blob = _container.GetBlobReferenceFromServer(path);
+            var blob = _container.GetBlockBlobReference(path);
             await blob.DeleteIfExistsAsync();
         }
 

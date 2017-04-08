@@ -12,8 +12,8 @@ namespace AzureStorageHelpers.Tests
     {
         static IStorageAccount GetStorage()
         {
-            //return new StorageAccount.FileStorageAccount(@"c:\temp\92");
-            return new StorageAccount.AzureStorageAccount(File.ReadAllText(@"c:\temp\dummy-storage-string.txt"));
+            return new StorageAccount.FileStorageAccount(@"c:\temp\92");
+            //return new StorageAccount.AzureStorageAccount(File.ReadAllText(@"c:\temp\dummy-storage-string.txt"));
         }
 
         [TestMethod]
@@ -74,12 +74,20 @@ namespace AzureStorageHelpers.Tests
             string rk = "ab:*<>|";
             await table.WriteOneAsync(new MyEntity { PartitionKey = pk, RowKey = rk, Value = 10 });
 
+            var e2 = await table.GetRowsWithPrefixAsync(pk, "ab:*");
+            Assert.AreEqual(pk, e2[0].PartitionKey);
+            Assert.AreEqual(rk, e2[0].RowKey);
+            Assert.AreEqual(10, e2[0].Value);
+
             var entities = await table.LookupAsync(pk);
 
             Assert.AreEqual(1, entities.Length);
             Assert.AreEqual(pk, entities[0].PartitionKey);
             Assert.AreEqual(rk, entities[0].RowKey);
             Assert.AreEqual(10, entities[0].Value);
+
+
+         
         }
 
 
