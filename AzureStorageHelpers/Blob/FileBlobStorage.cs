@@ -108,7 +108,8 @@ namespace AzureStorageHelpers
 
         public Task<Stream> OpenReadAsync(string path)
         {
-            Stream fs = new FileStream(path, FileMode.Open, FileAccess.Read);
+            string x = GetPath(path);
+            Stream fs = new FileStream(x, FileMode.Open, FileAccess.Read);
             return Task.FromResult(fs);
         }
     }

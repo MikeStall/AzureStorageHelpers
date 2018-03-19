@@ -1,2 +1,2 @@
-nuget pack AzureStorageHelpers.csproj
+\bin\nuget pack AzureStorageHelpers.csproj
 copy *.nupkg Y:\nugetfeed
