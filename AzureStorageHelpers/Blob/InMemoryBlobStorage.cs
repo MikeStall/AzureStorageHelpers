@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace AzureStorageHelpers
@@ -57,6 +58,11 @@ namespace AzureStorageHelpers
         public Task<System.IO.Stream> OpenReadAsync(string path)
         {
             throw new NotImplementedException();
+        }
+
+        public Task<Stream> OpenWriteStompAsync(string path)
+        {
+           throw new NotImplementedException();
         }
     }
 }

@@ -60,6 +60,8 @@ namespace AzureStorageHelpers
 
         // Write, can stomp values (overwrite existing). 
         Task WriteStompAsync(string path, string contents, IDictionary<string, string> metadataProperties = null);
+
+        Task<Stream> OpenWriteStompAsync(string path);
     }
 
     public static class IBlobStorageExtensions

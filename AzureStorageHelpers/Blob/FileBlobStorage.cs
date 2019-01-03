@@ -112,5 +112,12 @@ namespace AzureStorageHelpers
             Stream fs = new FileStream(x, FileMode.Open, FileAccess.Read);
             return Task.FromResult(fs);
         }
+
+        public Task<Stream> OpenWriteStompAsync(string path)
+        {
+            string x = GetPath(path);
+            Stream fs = new FileStream(x, FileMode.Create, FileAccess.Write);
+            return Task.FromResult(fs);
+        }
     }
 }

@@ -214,5 +214,13 @@ namespace AzureStorageHelpers
             Stream stream = await blob.OpenReadAsync();
             return stream;
         }
+
+        public async Task<Stream> OpenWriteStompAsync(string path)
+        {
+            var blob = _container.GetBlockBlobReference(path);
+
+            Stream stream = await blob.OpenWriteAsync();
+            return stream;
+        }
     }
 }
