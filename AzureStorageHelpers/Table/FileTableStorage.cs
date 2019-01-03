@@ -178,38 +178,32 @@ namespace AzureStorageHelpers
                 paths = new string[] { path };
             }
 
-            if (rowKeyStart != null)
-            {
-                rowKeyStart = Escape(rowKeyStart);
-            }
-            if (rowKeyEnd != null)
-            {
-                rowKeyEnd = Escape(rowKeyEnd);
-            }
-
             List<T> l = new List<T>();
             foreach (var path in paths)
             {
                 foreach (var file in Directory.EnumerateFiles(path))
                 {
-                    string rowKey = Path.GetFileNameWithoutExtension(file);
+                    // Don't use rowKey from filename since that's escaped.
+                    var entity = ReadEntity(file);
+                    string rowKey = entity.RowKey;
 
+                    // Always use .CompareOrdinal to get char-by-char comparison. 
                     if (rowKeyStart != null)
                     {
-                        if (string.Compare(rowKey, rowKeyStart) < 0)
+                        if (string.CompareOrdinal(rowKey, rowKeyStart) < 0)
                         {
                             continue;
                         }
                     }
                     if (rowKeyEnd != null)
                     {
-                        if (string.Compare(rowKey, rowKeyEnd) > 0)
+                        if (string.CompareOrdinal(rowKey, rowKeyEnd) > 0)
                         {
                             continue;
                         }
                     }
 
-                    l.Add(ReadEntity(file));
+                    l.Add(entity);
                 }
             }
 
