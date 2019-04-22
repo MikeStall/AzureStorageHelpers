@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using System.Text;
 using System.Globalization;
+using System.Threading;
 
 namespace AzureStorageHelpers
 {
@@ -30,6 +31,7 @@ namespace AzureStorageHelpers
         // $$$ - Respect insert mode
         public async Task WriteBatchAsync(T[] entities, TableInsertMode mode)
         {
+            await Task.Yield();
             lock (_lock)
             {
                 foreach (var entity in entities)
@@ -41,6 +43,7 @@ namespace AzureStorageHelpers
 
         public async Task WriteOneAsync(T entity, TableInsertMode mode )
         {
+            await Task.Yield();
             lock (_lock)
             {
                 WriteOneWorker(entity);
@@ -92,6 +95,8 @@ namespace AzureStorageHelpers
 
         public async Task WriteOneMergeAsync(T entity)
         {
+            await Task.Yield();
+
             lock (_lock)
             {
                 var existing = LookupOneWorker(entity.PartitionKey, entity.RowKey);
@@ -117,6 +122,8 @@ namespace AzureStorageHelpers
 
         public async Task DeleteOneAsync(T entity)
         {
+            await Task.Yield();
+
             if (entity.ETag == null)
             {
                 throw new InvalidOperationException("Delete requires an Etag. Can use '*'.");
@@ -137,6 +144,8 @@ namespace AzureStorageHelpers
 
         public async Task<T> LookupOneAsync(string partitionKey, string rowKey)
         {
+            await Task.Yield();
+
             return LookupOneWorker(partitionKey, rowKey);
         }
 
@@ -152,11 +161,24 @@ namespace AzureStorageHelpers
 
         private static T ReadEntity(string path)
         {
-            string json = File.ReadAllText(path);
-            var obj = JsonConvert.DeserializeObject<T>(json);
-            obj.Timestamp = new FileInfo(path).LastWriteTimeUtc;
-            obj.ETag = new FileInfo(path).LastWriteTimeUtc.ToString();
-            return obj;
+            for (int retry = 0; retry < 50; retry++)
+            {
+                try
+                {
+
+                    string json = File.ReadAllText(path);
+                    var obj = JsonConvert.DeserializeObject<T>(json);
+                    obj.Timestamp = new FileInfo(path).LastWriteTimeUtc;
+                    obj.ETag = new FileInfo(path).LastWriteTimeUtc.ToString();
+                    return obj;
+                }
+                catch (IOException e)
+                {
+                    // Retry
+                    Thread.Sleep(1);
+                }
+            }
+            throw new InvalidOperationException("Exceeded retries on read");
         }
 
         public async Task<Segment<T>> LookupAsync(
@@ -165,6 +187,8 @@ namespace AzureStorageHelpers
             string rowKeyEnd,
             string continuationToken)
         {
+            await Task.Yield();
+
             string[] paths;
             if (partitionKey == null)
             {

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace AzureStorageHelpers
@@ -30,17 +31,32 @@ namespace AzureStorageHelpers
 
         public async Task<string> ReadAsync(string path)
         {
+            await Task.Yield();
+
             string x = GetPath(path);
             if (!File.Exists(x))
             {
                 return null;
             }
-            string contents = File.ReadAllText(x);
-            return contents;
+            for (int retry = 0; retry < 50; retry++)
+            {
+                try
+                {
+                    string contents = File.ReadAllText(x);
+                    return contents;
+                }
+                catch
+                {
+                    Thread.Sleep(1);
+                }
+            }
+            throw new InvalidOperationException("Retries failed");
         }
 
         public async Task WriteNewAsync(string path, string contents, IDictionary<string, string> metadataProperties = null)
         {
+            await Task.Yield();
+
             string x = GetPath(path);
             if (File.Exists(x))
             {
@@ -52,34 +68,90 @@ namespace AzureStorageHelpers
 
         public async Task<Tuple<string, string>> MutateAsync(string path, Func<string, Task<Tuple<string, string>>> mutator)
         {
+            await Task.Yield();
+
             string x = GetPath(path);
             if (!File.Exists(x))
             {
                 return null;
             }
 
-            // $$$ Apply etag and optimistic concurrency 
-            string contents = File.ReadAllText(x);
+            for (int retry = 0; retry < 50; retry++)
+            {
+                // https://stackoverflow.com/questions/13698380/filestream-locking-a-file-for-reading-and-writing
+                // $$$ Apply etag and optimistic concurrency 
+                FileStream fs;
+                try
+                {
+                    fs = new FileStream(x, FileMode.Open, FileAccess.ReadWrite);
+                }
+                catch(IOException e)
+                {
+                    Thread.Sleep(1);
+                    continue; // retry
+                }
+                
+                StreamReader sr = null;
+                StreamWriter sw = null;
 
-            var tuple = await mutator(contents);
-            string newContent = tuple.Item1;
+                try
+                {
+                    sr = new StreamReader(fs);
+                    var contents = sr.ReadToEnd();
 
-            File.WriteAllText(x, newContent);
+                    var tuple = await mutator(contents);
+                    string newContent = tuple.Item1;
 
-            return tuple;
+                    fs.Seek(0, SeekOrigin.Begin);
+                    sw = new StreamWriter(fs);
+                    sw.Write(newContent);
+                    sw.Flush();
+                    fs.SetLength(fs.Position);
+
+                    return tuple;
+                }
+                finally
+                {
+                    if (sw != null)
+                    {
+                        sw.Close();
+                    }
+                    if (sr != null)
+                    {
+                        sr.Close();
+                    }
+
+                    fs.Dispose();
+                }                
+            }
+            throw new InvalidOperationException("Retries failed");
         }
 
         // $$$ assumpe pathPrefix is a directory 
         public async Task<string[]> ListPathsAsync(string pathPrefix)
         {
+            await Task.Yield();
+
             string filePath = GetPath(pathPrefix);
             List<string> l = new List<string>();
             Directory.CreateDirectory(filePath);
+
+            ListPathsWorker(filePath, l);
+
+            return l.ToArray();
+        }
+        private void ListPathsWorker(string filePath, List<string> files)
+        {
             foreach (var file in Directory.EnumerateFiles(filePath))
             {
-                l.Add(file.Replace('\\', '/')); // convert back to blob 
+                files.Add(file.Replace('\\', '/')); // convert back to blob 
             }
-            return l.ToArray();
+
+            // Subdirs
+            foreach(var dir in Directory.EnumerateDirectories(filePath))
+            {
+                ListPathsWorker(dir, files);
+            }
         }
 
         public Task<string[]> ListSubDirsAsync(string pathPrefix)
@@ -94,30 +166,38 @@ namespace AzureStorageHelpers
 
         public async Task DeleteAsync(string path)
         {
+            await Task.Yield();
+
             string x = GetPath(path);
             File.Delete(x);
         }
 
         public async Task WriteStompAsync(string path, string contents, IDictionary<string, string> metadataProperties = null)
         {
+            await Task.Yield();
+
             string x = GetPath(path);
             Directory.CreateDirectory(Path.GetDirectoryName(x));
             File.WriteAllText(x, contents);
         }
 
 
-        public Task<Stream> OpenReadAsync(string path)
+        public async Task<Stream> OpenReadAsync(string path)
         {
+            await Task.Yield();
+
             string x = GetPath(path);
             Stream fs = new FileStream(x, FileMode.Open, FileAccess.Read);
-            return Task.FromResult(fs);
+            return fs;
         }
 
-        public Task<Stream> OpenWriteStompAsync(string path)
+        public async Task<Stream> OpenWriteStompAsync(string path)
         {
+
+            await Task.Yield();
             string x = GetPath(path);
             Stream fs = new FileStream(x, FileMode.Create, FileAccess.Write);
-            return Task.FromResult(fs);
+            return fs;
         }
     }
 }

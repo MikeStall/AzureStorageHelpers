@@ -63,6 +63,25 @@ namespace AzureStorageHelpers.Tests
         }
 
         [TestMethod]
+        public async Task TestEscapesRegression()
+        {
+            var storage = GetStorage();
+
+            // Regression test. '9' is interesting as a prefix since the next char (used for rowKeyEnd) is ':', which tests escaping. 
+            var table = storage.NewTable<MyEntity>("tableEscape");
+            var pk = "1";
+            var rk = "A9"; 
+            await table.WriteOneAsync(new MyEntity { PartitionKey = pk, RowKey = rk, Value = 10 });
+
+            var entities = await table.GetRowsWithPrefixAsync("1", rk);
+
+            Assert.AreEqual(1, entities.Length);
+            Assert.AreEqual(pk, entities[0].PartitionKey);
+            Assert.AreEqual(rk, entities[0].RowKey);
+            Assert.AreEqual(10, entities[0].Value);
+        }
+
+        [TestMethod]
         public async Task TestEscapes()
         {
             var storage = GetStorage();
