@@ -248,6 +248,18 @@ namespace AzureStorageHelpers
             {
                 throw new InvalidOperationException("illegal continuation token");
             }
-        }    
+        }
+
+        public async Task<T> WriteAtomicAsync(string partionKey, string rowKey, Func<T, Task> mutate)
+        {
+            T entity = await this.LookupOneAsync(partionKey, rowKey);
+            if (entity == null)
+            {
+                return null;
+            }
+            await mutate(entity);
+            await this.WriteOneAsync(entity, TableInsertMode.InsertOrMerge);
+            return entity;
+        }
     }
 }

@@ -13,7 +13,29 @@ namespace AzureStorageHelpers.Tests
         static IStorageAccount GetStorage()
         {
             return new StorageAccount.FileStorageAccount(@"c:\temp\92");
-            //return new StorageAccount.AzureStorageAccount(File.ReadAllText(@"c:\temp\dummy-storage-string.txt"));
+            //return new StorageAccount.AzureStorageAccount(File.ReadAllText(@"c:\secrets\LegTracker-ConnectionStrings.txt"));
+        }
+
+        [TestMethod]
+        public async Task Etag()
+        {
+            var storage = GetStorage();
+
+            var table = storage.NewTable<MyEntity>("table3");
+            await table.WriteOneAsync(new MyEntity
+            {
+                PartitionKey = "1",
+                RowKey = "1",
+                Value = 10
+            });
+
+            var result = await table.WriteAtomicAsync("1", "1", async (x) =>
+            {
+                x.Value++;
+            });
+
+            Assert.AreEqual(result.Value, 11);
+
         }
 
         [TestMethod]

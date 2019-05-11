@@ -1,6 +1,7 @@
 ﻿using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using System;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace AzureStorageHelpers
@@ -76,10 +77,10 @@ namespace AzureStorageHelpers
         {
             // Create the TableOperation that inserts the customer entity.
             TableOperation op;
-            
-            switch(mode)
+
+            switch (mode)
             {
-                case TableInsertMode.Insert: 
+                case TableInsertMode.Insert:
                     op = TableOperation.InsertOrReplace(entity);
                     break;
                 case TableInsertMode.InsertOrMerge:
@@ -92,7 +93,7 @@ namespace AzureStorageHelpers
 
                 default:
                     throw new InvalidOperationException("Unsupported insert mode: " + mode.ToString());
-            }            
+            }
 
             // Execute the insert operation.
             await _table.ExecuteAsync(op);
@@ -126,8 +127,8 @@ namespace AzureStorageHelpers
 
         // http://stackoverflow.com/questions/18376087/copy-all-rows-to-another-table-in-azure-table-storage
         public async Task<Segment<T>> LookupAsync(
-            string partitionKey, 
-            string rowKeyStart, 
+            string partitionKey,
+            string rowKeyStart,
             string rowKeyEnd,
             string continuationToken)
         {
@@ -159,7 +160,7 @@ namespace AzureStorageHelpers
 
             return new Segment<T>(segment.Results.ToArray(), TableUtility.SerializeToken(segment.ContinuationToken));
         }
-     
+
 
 
         public async Task DeleteOneAsync(T entity)
@@ -213,6 +214,46 @@ namespace AzureStorageHelpers
                 }
             }
             return true;
+        }
+
+        // Etag documentation: https://azure.microsoft.com/en-us/blog/managing-concurrency-in-microsoft-azure-storage-2/
+        public async Task<T> WriteAtomicAsync(string partionKey, string rowKey, Func<T, Task> mutate)
+        {
+
+        Retry:
+            T entity = await this.LookupOneAsync(partionKey, rowKey);
+
+            await mutate(entity);
+            if (entity.PartitionKey != partionKey)
+            {
+                throw new InvalidOperationException("Illegal change of partition key");
+            }
+            if (entity.RowKey != rowKey)
+            {
+                throw new InvalidOperationException("Illegal change of row key");
+            }
+
+            try
+            {
+                // Merge operation will set the Etag match header. 
+                TableOperation insertOperation = TableOperation.Merge(entity);
+
+                // Execute the insert operation.
+                await _table.ExecuteAsync(insertOperation);
+
+                return entity;
+
+            }
+            catch (StorageException ex)
+            {
+                // Check for retry
+                if (ex.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                {
+                    // Etag mismatch. Retry! 
+                    goto Retry;
+                }
+                throw;
+            }
         }
     }
 }

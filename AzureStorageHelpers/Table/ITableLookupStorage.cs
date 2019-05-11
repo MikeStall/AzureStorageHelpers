@@ -1,4 +1,5 @@
 ﻿using Microsoft.WindowsAzure.Storage.Table;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -37,10 +38,15 @@ namespace AzureStorageHelpers
         Task WriteOneMergeAsync(T entity);
                 
         Task DeleteOneAsync(T entity);
+
+        // Atomic update.  Retry as needed. 
+        // Return null if not exist. Returns updated entity. 
+        Task<T> WriteAtomicAsync(string partionKey, string rowKey, Func<T, Task> mutate);
     }
 
     public enum TableInsertMode
     {
+        // These aren't concurrent safe. 
         Insert,
         InsertOrMerge,
         InsertOrReplace,
