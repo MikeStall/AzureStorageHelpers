@@ -258,7 +258,7 @@ namespace AzureStorageHelpers
             if (entity == null)
             {
                 var newEntity = await create();
-                await this.WriteOneAsync(entity, TableInsertMode.Insert);
+                await this.WriteOneAsync(newEntity, TableInsertMode.Insert);
                 return newEntity;
             }
             await mutate(entity);

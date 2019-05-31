@@ -16,9 +16,13 @@ namespace AzureStorageHelpers.Tests
             return new StorageAccount.AzureStorageAccount(File.ReadAllText(@"c:\secrets\LegTracker-ConnectionStrings.txt"));
         }
 
+        
         [TestMethod]
         public async Task Etag()
         {
+
+
+
             var storage = GetStorage();
 
             var table = storage.NewTable<MyEntity>("table3");
