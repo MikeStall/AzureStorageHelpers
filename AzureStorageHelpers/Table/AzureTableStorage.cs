@@ -217,13 +217,30 @@ namespace AzureStorageHelpers
         }
 
         // Etag documentation: https://azure.microsoft.com/en-us/blog/managing-concurrency-in-microsoft-azure-storage-2/
-        public async Task<T> WriteAtomicAsync(string partionKey, string rowKey, Func<T, Task> mutate)
+        public async Task<T> WriteAtomicAsync(string partionKey, string rowKey, 
+            Func<T, Task> mutate,
+            Func<Task<T>> create)
         {
 
-        Retry:
+            Retry:
             T entity = await this.LookupOneAsync(partionKey, rowKey);
+            TableOperation insertOperation;
+            if (entity == null)
+            {
+                // Doesn't exist yet.  
+                entity = await create();
 
-            await mutate(entity);
+                // This will 409 if the entity already exists. 
+                insertOperation = TableOperation.Insert(entity);
+            }
+            else
+            {
+                await mutate(entity);
+
+                // This will 412 if the entity's etag doesn't match. 
+                insertOperation = TableOperation.Merge(entity);
+            }
+
             if (entity.PartitionKey != partionKey)
             {
                 throw new InvalidOperationException("Illegal change of partition key");
@@ -235,8 +252,10 @@ namespace AzureStorageHelpers
 
             try
             {
+                // Insert/InsertReplace will full overwrite. 
                 // Merge operation will set the Etag match header. 
-                TableOperation insertOperation = TableOperation.Merge(entity);
+                // Requires an etag, meaning we must have read it already. 
+                // TableOperation insertOperation = TableOperation.Merge(entity);
 
                 // Execute the insert operation.
                 await _table.ExecuteAsync(insertOperation);
@@ -247,6 +266,14 @@ namespace AzureStorageHelpers
             catch (StorageException ex)
             {
                 // Check for retry
+
+                // On Insert, already exists. 
+                if (ex.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict)
+                {
+                    goto Retry;
+                }
+
+                // On merge, etag mismatch
                 if (ex.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
                 {
                     // Etag mismatch. Retry! 

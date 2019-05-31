@@ -12,8 +12,8 @@ namespace AzureStorageHelpers.Tests
     {
         static IStorageAccount GetStorage()
         {
-            return new StorageAccount.FileStorageAccount(@"c:\temp\92");
-            //return new StorageAccount.AzureStorageAccount(File.ReadAllText(@"c:\secrets\LegTracker-ConnectionStrings.txt"));
+            //return new StorageAccount.FileStorageAccount(@"c:\temp\92");
+            return new StorageAccount.AzureStorageAccount(File.ReadAllText(@"c:\secrets\LegTracker-ConnectionStrings.txt"));
         }
 
         [TestMethod]
@@ -29,10 +29,20 @@ namespace AzureStorageHelpers.Tests
                 Value = 10
             });
 
-            var result = await table.WriteAtomicAsync("1", "1", async (x) =>
-            {
-                x.Value++;
-            });
+            var result = await table.WriteAtomicAsync("1", "1", 
+                async (x) =>
+                {
+                    x.Value++;
+                },
+                async () =>
+                {
+                    return new MyEntity
+                    {
+                        PartitionKey = "1",
+                        RowKey = "1",
+                        Value = 12
+                    };
+                });
 
             Assert.AreEqual(result.Value, 11);
 

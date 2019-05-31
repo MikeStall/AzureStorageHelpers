@@ -39,9 +39,19 @@ namespace AzureStorageHelpers
                 
         Task DeleteOneAsync(T entity);
 
-        // Atomic update.  Retry as needed. 
-        // Return null if not exist. Returns updated entity. 
-        Task<T> WriteAtomicAsync(string partionKey, string rowKey, Func<T, Task> mutate);
+        /// <summary>
+        /// Atomic create/update to a single table entity. 
+        /// This will do retries and etag checks to ensure an atomic operation, so the mutate and create functions can be called multiple times. 
+        /// Result of callbacks must preserve the partition and row key. 
+        /// </summary>
+        /// <param name="partionKey">parition key of entity</param>
+        /// <param name="rowKey">row key of entity </param>
+        /// <param name="mutate">If entity already exists, called to mutate it. </param>
+        /// <param name="create">If entity does not yet exist, called to create it.</param>
+        /// <returns>the resulting entity</returns>
+        Task<T> WriteAtomicAsync(string partionKey, string rowKey, 
+            Func<T, Task> mutate, // Called if already exists 
+            Func<Task<T>> create); // Called if doesn't exist. 
     }
 
     public enum TableInsertMode

@@ -250,12 +250,16 @@ namespace AzureStorageHelpers
             }
         }
 
-        public async Task<T> WriteAtomicAsync(string partionKey, string rowKey, Func<T, Task> mutate)
+        public async Task<T> WriteAtomicAsync(string partionKey, string rowKey, 
+            Func<T, Task> mutate,
+            Func<Task<T>> create)
         {
             T entity = await this.LookupOneAsync(partionKey, rowKey);
             if (entity == null)
             {
-                return null;
+                var newEntity = await create();
+                await this.WriteOneAsync(entity, TableInsertMode.Insert);
+                return newEntity;
             }
             await mutate(entity);
             await this.WriteOneAsync(entity, TableInsertMode.InsertOrMerge);
