@@ -265,5 +265,11 @@ namespace AzureStorageHelpers
             await this.WriteOneAsync(entity, TableInsertMode.InsertOrMerge);
             return entity;
         }
+
+        public Task<Segment<T>> QueryAsync(TableQuery<T> query, 
+            string continuationToken = null)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

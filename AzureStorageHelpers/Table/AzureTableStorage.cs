@@ -125,6 +125,18 @@ namespace AzureStorageHelpers
             return null;
         }
 
+        
+        public async Task<Segment<T>> QueryAsync(
+            TableQuery<T> query,
+            string continuationToken = null)
+        {
+            TableContinuationToken realToken = TableUtility.DeserializeToken(continuationToken);
+            var segment = await _table.ExecuteQuerySegmentedAsync(query, realToken);
+
+            return new Segment<T>(segment.Results.ToArray(), TableUtility.SerializeToken(segment.ContinuationToken));
+        }
+
+
         // http://stackoverflow.com/questions/18376087/copy-all-rows-to-another-table-in-azure-table-storage
         public async Task<Segment<T>> LookupAsync(
             string partitionKey,
@@ -155,10 +167,7 @@ namespace AzureStorageHelpers
                 query = new TableQuery<T>().Where(filter);
             }
 
-            TableContinuationToken realToken = TableUtility.DeserializeToken(continuationToken);
-            var segment = await _table.ExecuteQuerySegmentedAsync(query, realToken);
-
-            return new Segment<T>(segment.Results.ToArray(), TableUtility.SerializeToken(segment.ContinuationToken));
+            return await QueryAsync(query, continuationToken);
         }
 
 

@@ -20,9 +20,6 @@ namespace AzureStorageHelpers.Tests
         [TestMethod]
         public async Task Etag()
         {
-
-
-
             var storage = GetStorage();
 
             var table = storage.NewTable<MyEntity>("table3");
@@ -143,6 +140,54 @@ namespace AzureStorageHelpers.Tests
 
 
          
+        }
+
+        [TestMethod]
+        public async Task TestQuery()
+        {
+            var storage = GetStorage();
+
+            var table = storage.NewTable<MyEntity>("table2");
+
+            await table.WriteOneAsync(new MyEntity { PartitionKey = "1", RowKey = "A1", Value = 10 });
+            await table.WriteOneAsync(new MyEntity { PartitionKey = "1", RowKey = "A2", Value = 20 });
+            await table.WriteOneAsync(new MyEntity { PartitionKey = "1", RowKey = "B2", Value = 30 });
+            await table.WriteOneAsync(new MyEntity { PartitionKey = "1", RowKey = "B1", Value = 40 });
+            await table.WriteOneAsync(new MyEntity { PartitionKey = "1", RowKey = "B3", Value = 45 });
+            await table.WriteOneAsync(new MyEntity { PartitionKey = "1", RowKey = "C1", Value = 50 });
+            await table.WriteOneAsync(new MyEntity { PartitionKey = "1", RowKey = "C2", Value = 60 });
+
+
+            {
+                var q1 = new TableQuery<MyEntity>(); // all
+                var e1 = await table.QueryAllAsync(q1);
+                AssertRows(e1, 10, 20, 40, 30, 45, 50, 60);
+            }
+
+            // Filter
+            {
+                var q5 = new TableQuery<MyEntity>().
+                    WhereEquals(nameof(MyEntity.Value), 45);
+                var e5 = await table.QueryAllAsync(q5);
+                AssertRows(e5, 45);
+            }
+
+            {
+                var q = new TableQuery<MyEntity>()
+                    .WhereRowsWithPrefix("1", "B");
+
+                var e3 = await table.QueryAllAsync(q);
+                AssertRows(e3, 40, 30, 45);
+            }
+
+            // Take 
+            {
+                var q = new TableQuery<MyEntity>()
+                    .WhereRowsWithPrefix("1", "B");
+                q.Take(2);
+                var e4 = await table.QueryAllAsync(q);
+                AssertRows(e4, 40, 30);
+            }
         }
 
 

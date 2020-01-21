@@ -2,6 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 
 namespace AzureStorageHelpers
 {
@@ -19,6 +22,9 @@ namespace AzureStorageHelpers
         // If PartitionKey = null, find all entities. 
         // Inclusive
         Task<Segment<T>> LookupAsync(string partitionKey, string rowKeyStart, string rowKeyEnd, string continuationToken);
+
+        // Full query ability 
+        Task<Segment<T>> QueryAsync(TableQuery<T> query, string continuationToken = null);
     }
 
     // Includes mutable operations. 
@@ -65,19 +71,30 @@ namespace AzureStorageHelpers
 
     public static class ITableLookupStorageExtensions
     {
-        public static async Task<T[]> LookupAsync<T>(this ITableLookupStorage<T> table,
-            string partitionKey, string rowKeyStart = null, string rowKeyEnd = null) where T : TableEntity
+        public static async Task<T[]> QueryAllAsync<T>(
+            this ITableLookupStorage<T> table,
+               TableQuery<T> query) where T : TableEntity
         {
+            int? takeN = query.TakeCount;
             List<T> list = null;
             string continuationToken = null;
 
             while (true)
             {
-                var segment = await table.LookupAsync(partitionKey, rowKeyStart, rowKeyEnd, continuationToken);
+                var segment = await table.QueryAsync(query, continuationToken);
                 if (list == null)
                 {
                     if (segment.ContinuationToken == null)
                     {
+                        if (takeN.HasValue)
+                        {
+                            // Truncate
+                            if (segment.Results.Length > takeN.Value)
+                            {
+                                return segment.Results.Take(takeN.Value).ToArray();
+                            }
+                        }
+
                         return segment.Results; // optimization, skip allocating the list 
                     }
                     list = new List<T>();
@@ -86,6 +103,23 @@ namespace AzureStorageHelpers
                 {
                     list.AddRange(segment.Results);
                 }
+
+                if (takeN.HasValue)
+                {
+                    if (list.Count > takeN.Value)
+                    {
+                        // Truncate
+                        list.RemoveRange(takeN.Value, list.Count - takeN.Value);
+                    }
+
+                    // If we continue querying, we'll grab more than TakeN. 
+                    // So check and return now. 
+                    if (list.Count == takeN.Value)
+                    {
+                        return list.ToArray();
+                    }
+                }
+
                 continuationToken = segment.ContinuationToken;
                 if (continuationToken == null)
                 {
@@ -94,6 +128,112 @@ namespace AzureStorageHelpers
                 }
             }
         }
+
+        public static async Task<T[]> LookupAsync<T>(this ITableLookupStorage<T> table,
+            string partitionKey, string rowKeyStart = null, string rowKeyEnd = null) where T : TableEntity
+        {
+            TableQuery<T> query = new TableQuery<T>();
+            if (partitionKey != null)
+            {
+                query.WhereRowRange(partitionKey, rowKeyStart, rowKeyEnd);
+            }
+
+            return await table.QueryAllAsync(query);             
+        }
+
+        #region Query Helpers 
+        // Merge a filter into an existing filter
+        public static TableQuery<T> AppendWhere<T>(
+         this TableQuery<T> query,
+         string filterString
+         ) where T : TableEntity
+        {
+            if (query.FilterString != null)
+            {
+                filterString = TableQuery.CombineFilters(
+                    query.FilterString,
+                    TableOperators.And,
+                    filterString);
+            }
+
+            query.Where(filterString); // fluent
+            return query;
+        }
+
+        
+        
+        public static TableQuery<T> WhereEquals<T>(
+            this TableQuery<T> query,
+            string propertyName,
+            object value
+            ) where T : TableEntity
+        {
+            var prop = typeof(T).GetProperty(propertyName);
+            if (prop == null)
+            {
+                throw new ArgumentException($"No property '{propertyName}'  on type '{typeof(T).Name}'");
+            }
+
+            string filter;
+            if (prop.PropertyType == typeof(string))
+            {
+                filter = TableQuery.GenerateFilterCondition(
+                    propertyName, QueryComparisons.Equal, (string)value);             
+            } else if (prop.PropertyType == typeof(int))
+            {
+                filter = TableQuery.GenerateFilterConditionForInt(
+                    propertyName, QueryComparisons.Equal, (int)value);
+            } else if (prop.PropertyType == typeof(bool))
+            {
+                filter = TableQuery.GenerateFilterConditionForBool(
+                    propertyName, QueryComparisons.Equal, (bool)value);
+            } else
+            {
+                throw new ArgumentException($"Unsupported type '{prop.PropertyType.Name}' for property '{propertyName}'");
+            }
+
+            return query.AppendWhere(filter);
+        }
+
+        // If RowKeyStart/RowKeyEnd are null, then it's an open ended query. 
+        public static TableQuery<T> WhereRowRange<T>(
+            this TableQuery<T> query,
+            string partitionKey,
+            string rowKeyStart = null,
+            string rowKeyEnd = null
+        ) where T : TableEntity
+        {
+            if (partitionKey == null)
+            {
+                throw new ArgumentNullException(nameof(partitionKey));
+            }
+
+            string filter = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, partitionKey);
+
+            if (rowKeyStart != null)
+            {
+                filter = TableQuery.CombineFilters(filter, TableOperators.And,
+                    TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.GreaterThanOrEqual, rowKeyStart));
+            }
+            if (rowKeyEnd != null)
+            {
+                filter = TableQuery.CombineFilters(filter, TableOperators.And,
+                    TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.LessThanOrEqual, rowKeyEnd));
+            }
+
+            return query.AppendWhere(filter);
+        }
+
+        public static TableQuery<T> WhereRowsWithPrefix<T>(
+            this TableQuery<T> query,
+            string partitionKey,
+            string rowKeyPrefix) where T : TableEntity
+        {
+            string rowKeyStart = rowKeyPrefix;
+            string rowKeyEnd = NextRowKey(rowKeyPrefix);
+            return query.WhereRowRange(partitionKey, rowKeyStart, rowKeyEnd);
+        }
+        #endregion Query Helpers 
 
         // Given a rowkey prefix, generate the next prefix. This can be used to find all row keys with a given prefix. 
         internal static string NextRowKey(string rowKeyStart)
